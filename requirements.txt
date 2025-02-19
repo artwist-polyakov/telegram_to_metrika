@@ -3,3 +3,4 @@ orjson==3.10.15
 pydantic==2.10.6
 pydantic_settings==2.7.1
 uvicorn==0.34.0
+aio-pika==9.5.4

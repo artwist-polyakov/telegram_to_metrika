@@ -14,6 +14,8 @@ RUN apk update \
 
 COPY . .
 
+ENV PYTHONPATH=/app
+
 RUN chmod +x /app/events_handler/entrypoint.sh
 
 CMD ["/bin/sh", "/app/events_handler/entrypoint.sh"]
