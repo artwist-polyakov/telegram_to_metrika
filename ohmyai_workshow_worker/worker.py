@@ -72,7 +72,7 @@ class MetrikaWorker:
 
     def upload_to_metrika(self, file_content: str):
         logger.info("Отправляем данные в Яндекс.Метрику...")
-        url = f"https://api-metrika.yandex.net/management/v1/counter/{COUNTER_ID}/offline_conversions/upload" # noqa E501
+        url = f"https://api-metrika.yandex.net/management/v1/counter/{COUNTER_ID}/offline_conversions/upload"  # noqa E501
         headers = {"Authorization": f"OAuth {settings.yandex_metrika_api_key}"}
         response = requests.post(url, headers=headers, files={"file": file_content})
         response.raise_for_status()
@@ -84,18 +84,28 @@ class MetrikaWorker:
             try:
                 logger.info("Получено новое сообщение")
                 body = message.body.decode()
-                logger.debug(f"Содержимое сообщения: {body}")
+                logger.info(f"Получено сырое сообщение: {body}")
 
-                data = eval(
-                    body
-                )  # Небезопасно, в реальном проекте используйте json.loads
+                try:
+                    import json
+
+                    body = body.replace("null", "null")
+                    data = json.loads(body)
+                    logger.info(f"Распарсенное сообщение: {data}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Ошибка парсинга JSON: {e}. Содержимое: {body}")
+                    return
+
                 logger.info(
                     f"Обрабатываем сообщение для пользователя: {data.get('username')}"
                 )
 
                 ymclid, yclid = self.parse_payload(data["payload"])
+                logger.info(f"Распарсенные ID: ymclid={ymclid}, yclid={yclid}")
 
                 client_id = ymclid if ymclid and ymclid != "null" else yclid
+                logger.info(f"Выбранный client_id: {client_id}")
+
                 if not client_id or client_id == "null":
                     logger.warning("Не найден валидный client_id в сообщении")
                     return
@@ -109,7 +119,8 @@ class MetrikaWorker:
                 logger.info(f"Сообщение успешно обработано для client_id: {client_id}")
 
             except Exception as e:
-                logger.error(f"Ошибка при обработке сообщения: {e}", exc_info=True)
+                logger.error(f"Ошибка при обработке сообщения: {str(e)}", exc_info=True)
+                logger.error(f"Проблемное сообщение: {body}")
 
     async def run(self):
         await self.connect()
