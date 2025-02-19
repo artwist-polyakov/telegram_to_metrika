@@ -14,6 +14,16 @@ settings = get_settings()
 
 
 class WorkshowRegisterRequest(BaseModel):
+    """Модель для входящего запроса"""
+
+    username: str | None = None
+    payload: str | None = None
+    phone: str | None = None
+
+
+class WorkshowRegisterEvent(BaseModel):
+    """Модель для отправки в очередь"""
+
     username: str | None = None
     payload: str | None = None
     phone: str | None = None
@@ -31,9 +41,12 @@ class WorkshowRegisterRequest(BaseModel):
     response_class=ORJSONResponse,
 )
 async def workshow_register(
-    event: WorkshowRegisterRequest,
+    request: WorkshowRegisterRequest = Depends(),
     queue_service: QueueService = Depends(get_queue_service),
 ) -> ORJSONResponse:
+    # Создаем событие из запроса с автоматическим timestamp
+    event = WorkshowRegisterEvent(**request.model_dump())
+
     await queue_service.send_to_queue(
         message=event.model_dump(), routing_key=settings.ohmyai_routing_key
     )

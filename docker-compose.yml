@@ -29,6 +29,9 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: none
 
   handler:
     container_name: handler
@@ -47,6 +50,8 @@ services:
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     depends_on:
+      rabbitmq:
+        condition: service_healthy
       rabbitmq_init:
         condition: service_completed_successfully
 
@@ -63,5 +68,7 @@ services:
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     depends_on:
+      rabbitmq:
+        condition: service_healthy
       rabbitmq_init:
         condition: service_completed_successfully
