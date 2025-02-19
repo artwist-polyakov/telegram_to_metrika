@@ -1,6 +1,6 @@
 from datetime import datetime
-
 import pytz
+from pydantic import BaseModel, Field
 from core.base_orjson_model import BaseORJSONModel
 from core.settings import get_settings
 from fastapi import APIRouter, Depends
@@ -13,12 +13,14 @@ router = APIRouter()
 settings = get_settings()
 
 
-class Event(BaseORJSONModel):
+class WorkshowRegisterRequest(BaseModel):
     username: str | None = None
     payload: str | None = None
-    phone: int | None = None
-    current_timestamp: int | None = int(
-        datetime.now(pytz.timezone("Europe/Moscow")).timestamp()
+    phone: str | None = None
+    current_timestamp: int = Field(
+        default_factory=lambda: int(
+            datetime.now(pytz.timezone("Europe/Moscow")).timestamp()
+        )
     )
 
 
@@ -29,7 +31,8 @@ class Event(BaseORJSONModel):
     response_class=ORJSONResponse,
 )
 async def workshow_register(
-    event: Event = Depends(), queue_service: QueueService = Depends(get_queue_service)
+    event: WorkshowRegisterRequest,
+    queue_service: QueueService = Depends(get_queue_service),
 ) -> ORJSONResponse:
     await queue_service.send_to_queue(
         message=event.model_dump(), routing_key=settings.ohmyai_routing_key
