@@ -14,18 +14,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        print("Starting up...")
-        QueueManager.initialize(settings)
-        await QueueManager.connect()
-        print("RabbitMQ connection established")
-        yield
-    except Exception as e:
-        print(f"Error during startup: {e}")
-        raise
-    finally:
-        print("Shutting down...")
-        await QueueManager.disconnect()
+    QueueManager.initialize(settings)
+    await QueueManager.connect()
+    yield
+    await QueueManager.disconnect()
 
 
 app = FastAPI(
