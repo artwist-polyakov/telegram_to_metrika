@@ -1,5 +1,6 @@
 import aio_pika
 from aio_pika import Connection, Channel, Exchange
+import json
 
 from core.settings import Settings
 from queues.base_queue import BaseQueueEmitter
@@ -24,10 +25,8 @@ class RabbitMQEmitter(BaseQueueEmitter):
             password=self.settings.rabbitmq_password,
         )
         self.channel = await self.connection.channel()
-        self.exchange = await self.channel.declare_exchange(
+        self.exchange = await self.channel.get_exchange(
             self.settings.rabbitmq_exchange,
-            type="topic",
-            durable=True,
         )
 
     async def disconnect(self) -> None:
@@ -45,7 +44,7 @@ class RabbitMQEmitter(BaseQueueEmitter):
 
         await self.exchange.publish(
             aio_pika.Message(
-                body=str(message).encode(),
+                body=json.dumps(message).encode(),
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
             ),
             routing_key=routing_key,

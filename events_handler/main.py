@@ -1,26 +1,31 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import Depends, FastAPI
-from fastapi.openapi.utils import get_openapi
+from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 
-from events_handler.api.v1 import ohmyai
-from events_handler.core.logger import LOGGING
-from events_handler.core.settings import get_settings
-from events_handler.queues.queue_manager import QueueManager
+from api.v1 import ohmyai
+from core.logger import LOGGING
+from core.settings import get_settings
+from queues.queue_manager import QueueManager
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # on_startup
-    QueueManager.initialize(settings)
-    await QueueManager.connect()
-    yield
-    # on_shutdown
-    await QueueManager.disconnect()
+    try:
+        print("Starting up...")
+        QueueManager.initialize(settings)
+        await QueueManager.connect()
+        print("RabbitMQ connection established")
+        yield
+    except Exception as e:
+        print(f"Error during startup: {e}")
+        raise
+    finally:
+        print("Shutting down...")
+        await QueueManager.disconnect()
 
 
 app = FastAPI(
