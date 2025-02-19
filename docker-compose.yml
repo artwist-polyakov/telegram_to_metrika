@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: [ "CMD", "rabbitmqctl", "status" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  rabbitmq_init:
+    image: rabbitmq:3-management
+    volumes:
+      - ./scripts/init_rabbitmq.sh:/init_rabbitmq.sh
+    entrypoint: [ "sh", "/init_rabbitmq.sh" ]
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE}
+      - RABBITMQ_METRICS_QUEUE=${RABBITMQ_METRICS_QUEUE}
+      - RABBITMQ_METRICS_ROUTING_KEY=${RABBITMQ_METRICS_ROUTING_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  handler:
+    container_name: handler
+    build:
+      context: .
+      dockerfile: events_handler/Dockerfile
+    ports:
+      - "${PROJECT_PORT}:${PROJECT_PORT}"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      rabbitmq_init:
+        condition: service_completed_successfully

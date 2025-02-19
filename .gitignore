@@ -1,0 +1,9 @@
+# Environments
+.env
+.venv
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
