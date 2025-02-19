@@ -14,10 +14,16 @@ done
 
 >&2 echo "RabbitMQ запущен - выполняем инициализацию"
 
+# Создаем пользователя и назначаем права
+rabbitmqctl add_user ${RABBITMQ_USER:-polyakov} ${RABBITMQ_PASSWORD:-ewfkIH@UENJkdsc}
+rabbitmqctl set_user_tags ${RABBITMQ_USER:-polyakov} administrator
+rabbitmqctl set_permissions -p / ${RABBITMQ_USER:-polyakov} ".*" ".*" ".*"
+
 # Создание exchange типа topic
 rabbitmqadmin -H ${RABBITMQ_HOST} -P 15672 declare exchange \
     name=${RABBITMQ_EXCHANGE} \
-    type=topic
+    type=topic \
+    durable=true
 
 # Создание очереди
 rabbitmqadmin -H ${RABBITMQ_HOST} -P 15672 declare queue \
@@ -30,5 +36,8 @@ rabbitmqadmin -H ${RABBITMQ_HOST} -P 15672 declare binding \
     destination_type=queue \
     destination=${RABBITMQ_METRICS_QUEUE} \
     routing_key=${RABBITMQ_METRICS_ROUTING_KEY}
+
+# Удаляем гостевого пользователя
+rabbitmqctl delete_user guest
 
 echo "Инициализация RabbitMQ завершена"

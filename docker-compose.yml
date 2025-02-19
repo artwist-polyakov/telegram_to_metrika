@@ -21,6 +21,8 @@ services:
     environment:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE}
       - RABBITMQ_METRICS_QUEUE=${RABBITMQ_METRICS_QUEUE}
       - RABBITMQ_METRICS_ROUTING_KEY=${RABBITMQ_METRICS_ROUTING_KEY}
@@ -42,6 +44,8 @@ services:
     restart: unless-stopped
     environment:
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     depends_on:
       rabbitmq_init:
         condition: service_completed_successfully
@@ -56,6 +60,8 @@ services:
     restart: unless-stopped
     environment:
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     depends_on:
       rabbitmq_init:
         condition: service_completed_successfully
