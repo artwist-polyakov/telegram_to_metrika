@@ -18,7 +18,10 @@ class Event(BaseORJSONModel):
     username: str | None = None
     payload: str | None = None
     phone: int | None = None
-    current_timestamp: int | None = int(datetime.now(pytz.timezone('Europe/Moscow')).timestamp())
+    current_timestamp: int | None = int(
+        datetime.now(pytz.timezone("Europe/Moscow")).timestamp()
+    )
+
 
 @router.post(
     path="/workshow_register",
@@ -30,6 +33,6 @@ async def workshow_register(
     event: Event = Depends(), queue_service: QueueService = Depends(get_queue_service)
 ) -> ORJSONResponse:
     await queue_service.send_to_queue(
-        message=event.model_dump(), routing_key=settings.rabbitmq_metrics_routing_key
+        message=event.model_dump(), routing_key=settings.ohmyai_routing_key
     )
     return ORJSONResponse(status_code=200, content={"status": "ok"})

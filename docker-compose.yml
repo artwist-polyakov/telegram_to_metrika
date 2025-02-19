@@ -45,3 +45,17 @@ services:
     depends_on:
       rabbitmq_init:
         condition: service_completed_successfully
+
+  ohmyai_worker:
+    container_name: ohmyai_worker
+    build:
+      context: ohmyai_workshow_worker
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      rabbitmq_init:
+        condition: service_completed_successfully
