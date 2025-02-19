@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     # RabbitMQ settings
     rabbitmq_host: str = "localhost"
     rabbitmq_port: int = 5672
-    rabbitmq_user: str = "guest"
-    rabbitmq_password: str = "guest"
+    rabbitmq_user: str = ...
+    rabbitmq_password: str = ...
     rabbitmq_exchange: str = "metrika_exchange"
     rabbitmq_metrics_queue: str = "metrics_queue"
     rabbitmq_metrics_routing_key: str = "metrics"
