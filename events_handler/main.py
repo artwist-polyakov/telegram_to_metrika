@@ -1,12 +1,11 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import ORJSONResponse
-
 from api.v1 import ohmyai
 from core.logger import LOGGING
 from core.settings import get_settings
+from fastapi import FastAPI
+from fastapi.responses import ORJSONResponse
 from queues.queue_manager import QueueManager
 
 settings = get_settings()

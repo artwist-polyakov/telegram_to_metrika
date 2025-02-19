@@ -3,14 +3,11 @@ import csv
 import io
 import logging
 import re
-from datetime import datetime
 from typing import Optional
 
 import aio_pika
 import requests
-from aio_pika import Message
 from aio_pika.abc import AbstractIncomingMessage
-
 from core.settings import get_settings
 
 settings = get_settings()
@@ -75,7 +72,7 @@ class MetrikaWorker:
 
     def upload_to_metrika(self, file_content: str):
         logger.info("Отправляем данные в Яндекс.Метрику...")
-        url = f"https://api-metrika.yandex.net/management/v1/counter/{COUNTER_ID}/offline_conversions/upload"
+        url = f"https://api-metrika.yandex.net/management/v1/counter/{COUNTER_ID}/offline_conversions/upload" # noqa E501
         headers = {"Authorization": f"OAuth {settings.yandex_metrika_api_key}"}
         response = requests.post(url, headers=headers, files={"file": file_content})
         response.raise_for_status()

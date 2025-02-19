@@ -1,7 +1,7 @@
-import aio_pika
-from aio_pika import Connection, Channel, Exchange
 import json
 
+import aio_pika
+from aio_pika import Channel, Connection, Exchange
 from core.settings import Settings
 from queues.base_queue import BaseQueueEmitter
 

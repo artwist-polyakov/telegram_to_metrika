@@ -1,6 +1,5 @@
 from functools import lru_cache
 
-from core.settings import get_settings
 from queues.queue_manager import QueueManager
 from service.base_queue_service import QueueService
 
