@@ -1,3 +1,6 @@
+from datetime import datetime
+
+import pytz
 from fastapi import APIRouter, Depends
 from fastapi.responses import ORJSONResponse
 
@@ -15,7 +18,7 @@ class Event(BaseORJSONModel):
     username: str | None = None
     payload: str | None = None
     phone: int | None = None
-
+    current_timestamp: int | None = int(datetime.now(pytz.timezone('Europe/Moscow')).timestamp())
 
 @router.post(
     path="/workshow_register",
