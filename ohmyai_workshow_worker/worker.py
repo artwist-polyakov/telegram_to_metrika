@@ -80,47 +80,64 @@ class MetrikaWorker:
         return response
 
     async def process_message(self, message: AbstractIncomingMessage):
-        async with message.process():
+        try:
+            logger.info("Получено новое сообщение")
+            body = message.body.decode()
+            logger.info(f"Получено сырое сообщение: {body}")
+
             try:
-                logger.info("Получено новое сообщение")
-                body = message.body.decode()
-                logger.info(f"Получено сырое сообщение: {body}")
+                import json
 
-                try:
-                    import json
+                data = json.loads(body)
+                logger.info(f"Распарсенное сообщение: {data}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Ошибка парсинга JSON: {e}. Содержимое: {body}")
+                await message.ack()  # Невалидный JSON - нет смысла повторять
+                return
 
-                    body = body.replace("null", "null")
-                    data = json.loads(body)
-                    logger.info(f"Распарсенное сообщение: {data}")
-                except json.JSONDecodeError as e:
-                    logger.error(f"Ошибка парсинга JSON: {e}. Содержимое: {body}")
-                    return
+            # Ранняя проверка payload
+            if data.get("payload") is None:
+                logger.info("Получен пустой payload, пропускаем сообщение")
+                await message.ack()  # Пустой payload - нет смысла повторять
+                return
 
-                logger.info(
-                    f"Обрабатываем сообщение для пользователя: {data.get('username')}"
-                )
+            logger.info(
+                f"Обрабатываем сообщение для пользователя: {data.get('username')}"
+            )
 
-                ymclid, yclid = self.parse_payload(data["payload"])
-                logger.info(f"Распарсенные ID: ymclid={ymclid}, yclid={yclid}")
+            ymclid, yclid = self.parse_payload(data["payload"])
+            logger.info(f"Распарсенные ID: ymclid={ymclid}, yclid={yclid}")
 
-                client_id = ymclid if ymclid and ymclid != "null" else yclid
-                logger.info(f"Выбранный client_id: {client_id}")
+            client_id = ymclid if ymclid and ymclid != "null" else yclid
+            logger.info(f"Выбранный client_id: {client_id}")
 
-                if not client_id or client_id == "null":
-                    logger.warning("Не найден валидный client_id в сообщении")
-                    return
+            if not client_id or client_id == "null":
+                logger.warning("Не найден валидный client_id в сообщении")
+                await message.ack()  # Невалидный client_id - нет смысла повторять
+                return
 
-                logger.info(f"Используем client_id: {client_id}")
-                csv_content = self.create_csv(
-                    client_id=client_id, timestamp=data["current_timestamp"]
-                )
+            logger.info(f"Используем client_id: {client_id}")
+            csv_content = self.create_csv(
+                client_id=client_id, timestamp=data["current_timestamp"]
+            )
 
+            try:
                 self.upload_to_metrika(csv_content)
                 logger.info(f"Сообщение успешно обработано для client_id: {client_id}")
-
+                await message.ack()
             except Exception as e:
-                logger.error(f"Ошибка при обработке сообщения: {str(e)}", exc_info=True)
-                logger.error(f"Проблемное сообщение: {body}")
+                logger.error(f"Ошибка загрузки в Метрику: {str(e)}")
+                # Возвращаем сообщение в очередь при ошибке загрузки
+                await message.reject(requeue=True)
+                return
+
+        except Exception as e:
+            logger.error(
+                f"Неожиданная ошибка при обработке сообщения: {str(e)}", exc_info=True
+            )
+            logger.error(f"Проблемное сообщение: {body}")
+            # Для неожиданных ошибок тоже делаем reject
+            await message.reject(requeue=True)
 
     async def run(self):
         await self.connect()
