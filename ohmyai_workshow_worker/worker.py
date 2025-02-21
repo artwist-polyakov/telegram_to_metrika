@@ -1,17 +1,17 @@
 import asyncio
 import csv
 import io
+import json
 import logging
 import re
+import sys
 from collections import defaultdict
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import aio_pika
 import requests
 from aio_pika.abc import AbstractIncomingMessage
 from core.settings import get_settings
-import sys
-import json
 
 settings = get_settings()
 
