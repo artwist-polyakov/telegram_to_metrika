@@ -11,6 +11,7 @@ import requests
 from aio_pika.abc import AbstractIncomingMessage
 from core.settings import get_settings
 import sys
+import json
 
 settings = get_settings()
 
@@ -153,7 +154,8 @@ class MetrikaWorker:
                     await message.reject(requeue=True)
 
                 # Проверяем, есть ли еще сообщения
-                if not await self.queue.declare(passive=True):
+                queue_info = await self.queue.declare(passive=True)
+                if queue_info.message_count == 0:
                     break
 
         return messages_processed
