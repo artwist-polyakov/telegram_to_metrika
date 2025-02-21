@@ -118,14 +118,11 @@ class MetrikaWorker:
             for message, _ in messages:
                 await message.reject(requeue=True)
 
-    async def collect_messages(self, max_messages: int = 1000) -> int:
+    async def collect_messages(self) -> int:
         messages_processed = 0
 
         async with self.queue.iterator() as queue_iter:
             async for message in queue_iter:
-                if messages_processed >= max_messages:
-                    break
-
                 try:
                     body = message.body.decode()
                     data = json.loads(body)
@@ -150,6 +147,10 @@ class MetrikaWorker:
                     logger.error(f"Ошибка при обработке сообщения: {str(e)}")
                     await message.reject(requeue=True)
 
+                # Проверяем, есть ли еще сообщения
+                if not await self.queue.declare(passive=True):
+                    break
+
         return messages_processed
 
     async def process_collected_messages(self):
@@ -160,6 +161,9 @@ class MetrikaWorker:
             for msg, data in messages
         ]
         await self.process_batch(ymclid_batch, "ymclid")
+
+        # Ждем 1 секунду между загрузками файлов
+        await asyncio.sleep(1)
 
         # Обработка yclid сообщений
         yclid_batch = [
