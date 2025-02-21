@@ -30,7 +30,7 @@ class WorkshowRegisterEvent(BaseModel):
     phone: str | None = None
     current_timestamp: int = Field(
         default_factory=lambda: int(
-            datetime.now(pytz.timezone("Europe/Moscow")).timestamp() + MOSCOW_DELTA
+            datetime.now(pytz.timezone("Europe/Moscow")).timestamp() + 0
         )
     )
 
