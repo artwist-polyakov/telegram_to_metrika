@@ -127,37 +127,39 @@ class MetrikaWorker:
     async def collect_messages(self) -> int:
         messages_processed = 0
 
-        async with self.queue.iterator() as queue_iter:
-            async for message in queue_iter:
-                try:
-                    body = message.body.decode()
-                    data = json.loads(body)
+        try:
+            async with self.queue.iterator(timeout=5) as queue_iter:
+                async for message in queue_iter:
+                    try:
+                        body = message.body.decode()
+                        data = json.loads(body)
 
-                    if not data.get("payload"):
-                        await message.ack()
-                        continue
+                        if not data.get("payload"):
+                            await message.ack()
+                            continue
 
-                    ymclid, yclid = self.parse_payload(data["payload"])
+                        ymclid, yclid = self.parse_payload(data["payload"])
 
-                    if ymclid and ymclid != "null":
-                        self.ymclid_messages[ymclid].append((message, data))
-                    elif yclid and yclid != "null":
-                        self.yclid_messages[yclid].append((message, data))
-                    else:
-                        await message.ack()
-                        continue
+                        if ymclid and ymclid != "null":
+                            self.ymclid_messages[ymclid].append((message, data))
+                        elif yclid and yclid != "null":
+                            self.yclid_messages[yclid].append((message, data))
+                        else:
+                            await message.ack()
+                            continue
 
-                    messages_processed += 1
+                        messages_processed += 1
 
-                except Exception as e:
-                    logger.error(f"Ошибка при обработке сообщения: {str(e)}")
-                    await message.reject(requeue=True)
+                    except Exception as e:
+                        logger.error(f"Ошибка при обработке сообщения: {str(e)}")
+                        await message.reject(requeue=True)
 
-                # Проверяем, есть ли еще сообщения
-                queue_info = await self.queue.declare(passive=True)
-                if queue_info.message_count == 0:
-                    break
-
+                    # Если сообщений в очереди больше нет — можно выйти
+                    queue_info = await self.queue.declare(passive=True)
+                    if queue_info.message_count == 0:
+                        break
+        except asyncio.TimeoutError:
+            logger.info("Таймаут ожидания сообщений, завершаем сбор.")
         return messages_processed
 
     async def process_collected_messages(self):

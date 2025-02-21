@@ -62,6 +62,8 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    volumes:
+      - ./logs:/var/log
     restart: unless-stopped
     environment:
       - RABBITMQ_HOST=rabbitmq
