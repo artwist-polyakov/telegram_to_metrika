@@ -11,6 +11,7 @@ from service.queue_service import get_queue_service
 router = APIRouter()
 
 settings = get_settings()
+MOSCOW_DELTA = 3 * 3600
 
 
 class WorkshowRegisterRequest(BaseModel):
@@ -29,7 +30,7 @@ class WorkshowRegisterEvent(BaseModel):
     phone: str | None = None
     current_timestamp: int = Field(
         default_factory=lambda: int(
-            datetime.now(pytz.timezone("Europe/Moscow")).timestamp()
+            datetime.now(pytz.timezone("Europe/Moscow")).timestamp() + MOSCOW_DELTA
         )
     )
 
