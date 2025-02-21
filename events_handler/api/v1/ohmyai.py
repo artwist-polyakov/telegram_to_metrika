@@ -1,10 +1,11 @@
 from datetime import datetime
+
 import pytz
-from pydantic import BaseModel, Field
 from core.base_orjson_model import BaseORJSONModel
 from core.settings import get_settings
 from fastapi import APIRouter, Depends
 from fastapi.responses import ORJSONResponse
+from pydantic import BaseModel, Field
 from service.base_queue_service import QueueService
 from service.queue_service import get_queue_service
 
@@ -14,7 +15,7 @@ settings = get_settings()
 MOSCOW_DELTA = 3 * 3600
 
 
-class WorkshowRegisterRequest(BaseModel):
+class WorkshowRegisterRequest(BaseORJSONModel):
     """Модель для входящего запроса"""
 
     username: str | None = None
@@ -22,12 +23,9 @@ class WorkshowRegisterRequest(BaseModel):
     phone: str | None = None
 
 
-class WorkshowRegisterEvent(BaseModel):
+class WorkshowRegisterEvent(WorkshowRegisterRequest):
     """Модель для отправки в очередь"""
 
-    username: str | None = None
-    payload: str | None = None
-    phone: str | None = None
     current_timestamp: int = Field(
         default_factory=lambda: int(
             datetime.now(pytz.timezone("Europe/Moscow")).timestamp() + 0
@@ -42,8 +40,8 @@ class WorkshowRegisterEvent(BaseModel):
     response_class=ORJSONResponse,
 )
 async def workshow_register(
-    request: WorkshowRegisterRequest = Depends(),
-    queue_service: QueueService = Depends(get_queue_service),
+        request: WorkshowRegisterRequest = Depends(),
+        queue_service: QueueService = Depends(get_queue_service),
 ) -> ORJSONResponse:
     # Создаем событие из запроса с автоматическим timestamp
     event = WorkshowRegisterEvent(**request.model_dump())

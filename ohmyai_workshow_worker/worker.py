@@ -1,9 +1,12 @@
 import asyncio
 import csv
 import io
+import json
 import logging
 import re
-from typing import Optional
+import sys
+from collections import defaultdict
+from typing import Dict, List, Optional, Tuple
 
 import aio_pika
 import requests
@@ -16,6 +19,10 @@ settings = get_settings()
 logging.basicConfig(
     level=settings.logging_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("/var/log/worker.log"),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -29,6 +36,13 @@ class MetrikaWorker:
         self.channel = None
         self.exchange = None
         self.queue = None
+        # Словари для хранения сообщений по типам ID
+        self.ymclid_messages: Dict[str, List[Tuple[AbstractIncomingMessage, dict]]] = (
+            defaultdict(list)
+        )
+        self.yclid_messages: Dict[str, List[Tuple[AbstractIncomingMessage, dict]]] = (
+            defaultdict(list)
+        )
 
     async def connect(self):
         logger.info("Подключаемся к RabbitMQ...")
@@ -58,14 +72,13 @@ class MetrikaWorker:
         logger.info(f"Получены ID: ymclid={ymclid}, yclid={yclid}")
         return ymclid, yclid
 
-    def create_csv(self, client_id: str, timestamp: int) -> str:
-        logger.info(
-            f"Создаем CSV файл для client_id={client_id}, timestamp={timestamp}"
-        )
+    def create_csv(self, conversions: List[Tuple[str, int]]) -> str:
+        logger.info(f"Создаем CSV файл для {len(conversions)} конверсий")
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["ClientId", "Target", "DateTime"])
-        writer.writerow([client_id, CONVERSION_TARGET, timestamp])
+        for client_id, timestamp in conversions:
+            writer.writerow([client_id, CONVERSION_TARGET, timestamp])
         csv_content = output.getvalue()
         logger.debug(f"Подготовлен CSV файл:\n{csv_content}")
         return csv_content
@@ -79,79 +92,113 @@ class MetrikaWorker:
         logger.info("Данные успешно загружены в Яндекс.Метрику")
         return response
 
-    async def process_message(self, message: AbstractIncomingMessage):
+    async def process_batch(
+        self, messages: List[Tuple[AbstractIncomingMessage, dict]], id_type: str
+    ):
+        if not messages:
+            logger.info(f"Нет сообщений для обработки с типом ID: {id_type}")
+            return
+
+        conversions = []
+        for _, data in messages:
+            client_id = data[f"{id_type}"]
+            timestamp = data["current_timestamp"]
+            conversions.append((client_id, timestamp))
+
         try:
-            logger.info("Получено новое сообщение")
-            body = message.body.decode()
-            logger.info(f"Получено сырое сообщение: {body}")
+            csv_content = self.create_csv(conversions)
+            response = self.upload_to_metrika(csv_content)
 
-            try:
-                import json
-
-                data = json.loads(body)
-                logger.info(f"Распарсенное сообщение: {data}")
-            except json.JSONDecodeError as e:
-                logger.error(f"Ошибка парсинга JSON: {e}. Содержимое: {body}")
-                await message.ack()  # Невалидный JSON - нет смысла повторять
-                return
-
-            # Ранняя проверка payload
-            if data.get("payload") is None:
-                logger.info("Получен пустой payload, пропускаем сообщение")
-                await message.ack()  # Пустой payload - нет смысла повторять
-                return
-
-            logger.info(
-                f"Обрабатываем сообщение для пользователя: {data.get('username')}"
-            )
-
-            ymclid, yclid = self.parse_payload(data["payload"])
-            logger.info(f"Распарсенные ID: ymclid={ymclid}, yclid={yclid}")
-
-            client_id = ymclid if ymclid and ymclid != "null" else yclid
-            logger.info(f"Выбранный client_id: {client_id}")
-
-            if not client_id or client_id == "null":
-                logger.warning("Не найден валидный client_id в сообщении")
-                await message.ack()  # Невалидный client_id - нет смысла повторять
-                return
-
-            logger.info(f"Используем client_id: {client_id}")
-            csv_content = self.create_csv(
-                client_id=client_id, timestamp=data["current_timestamp"]
-            )
-
-            try:
-                self.upload_to_metrika(csv_content)
-                logger.info(f"Сообщение успешно обработано для client_id: {client_id}")
-                await message.ack()
-            except Exception as e:
-                logger.error(f"Ошибка загрузки в Метрику: {str(e)}")
-                # Возвращаем сообщение в очередь при ошибке загрузки
-                await message.reject(requeue=True)
-                return
-
+            if response.status_code == 200:
+                logger.info(f"Успешная загрузка для {id_type}")
+                # Подтверждаем все сообщения в пакете
+                for message, _ in messages:
+                    await message.ack()
+            else:
+                logger.error(f"Ошибка загрузки для {id_type}: {response.status_code}")
+                # Возвращаем сообщения в очередь
+                for message, _ in messages:
+                    await message.reject(requeue=True)
         except Exception as e:
-            logger.error(
-                f"Неожиданная ошибка при обработке сообщения: {str(e)}", exc_info=True
-            )
-            logger.error(f"Проблемное сообщение: {body}")
-            # Для неожиданных ошибок тоже делаем reject
-            await message.reject(requeue=True)
+            logger.error(f"Ошибка при обработке пакета {id_type}: {str(e)}")
+            for message, _ in messages:
+                await message.reject(requeue=True)
 
-    async def run(self):
-        await self.connect()
-        logger.info("Воркер запущен и готов к обработке сообщений")
+    async def collect_messages(self) -> int:
+        messages_processed = 0
 
-        async with self.queue.iterator() as queue_iter:
-            async for message in queue_iter:
-                await self.process_message(message)
+        try:
+            async with self.queue.iterator(timeout=5) as queue_iter:
+                async for message in queue_iter:
+                    try:
+                        body = message.body.decode()
+                        data = json.loads(body)
+
+                        if not data.get("payload"):
+                            await message.ack()
+                            continue
+
+                        ymclid, yclid = self.parse_payload(data["payload"])
+
+                        if ymclid and ymclid != "null":
+                            self.ymclid_messages[ymclid].append((message, data))
+                        elif yclid and yclid != "null":
+                            self.yclid_messages[yclid].append((message, data))
+                        else:
+                            await message.ack()
+                            continue
+
+                        messages_processed += 1
+
+                    except Exception as e:
+                        logger.error(f"Ошибка при обработке сообщения: {str(e)}")
+                        await message.reject(requeue=True)
+
+                    # Если сообщений в очереди больше нет — можно выйти
+                    queue_info = await self.queue.declare(passive=True)
+                    if queue_info.message_count == 0:
+                        break
+        except asyncio.TimeoutError:
+            logger.info("Таймаут ожидания сообщений, завершаем сбор.")
+        return messages_processed
+
+    async def process_collected_messages(self):
+        # Обработка ymclid сообщений
+        ymclid_batch = [
+            (msg, data)
+            for messages in self.ymclid_messages.values()
+            for msg, data in messages
+        ]
+        await self.process_batch(ymclid_batch, "ymclid")
+
+        # Ждем 1 секунду между загрузками файлов
+        await asyncio.sleep(1)
+
+        # Обработка yclid сообщений
+        yclid_batch = [
+            (msg, data)
+            for messages in self.yclid_messages.values()
+            for msg, data in messages
+        ]
+        await self.process_batch(yclid_batch, "yclid")
+
+    async def run_once(self):
+        try:
+            await self.connect()
+            processed_count = await self.collect_messages()
+            if processed_count > 0:
+                await self.process_collected_messages()
+            await self.connection.close()
+        except Exception as e:
+            logger.error(f"Ошибка в процессе выполнения: {str(e)}")
+            if self.connection and not self.connection.is_closed:
+                await self.connection.close()
 
 
 async def main():
-    logger.info("Запуск воркера для обработки сообщений Workshow")
+    logger.info("Запуск обработки сообщений Workshow")
     worker = MetrikaWorker()
-    await worker.run()
+    await worker.run_once()
 
 
 if __name__ == "__main__":
