@@ -10,6 +10,7 @@ import aio_pika
 import requests
 from aio_pika.abc import AbstractIncomingMessage
 from core.settings import get_settings
+import sys
 
 settings = get_settings()
 
@@ -17,6 +18,10 @@ settings = get_settings()
 logging.basicConfig(
     level=settings.logging_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("/var/log/worker.log"),
+    ],
 )
 logger = logging.getLogger(__name__)
 

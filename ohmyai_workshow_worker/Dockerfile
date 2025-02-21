@@ -5,15 +5,12 @@ WORKDIR /app
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && apk add --no-cache dcron
 
 COPY . .
 
-RUN mkdir -p /var/log \
-    && touch /var/log/worker.log
+# Устанавливаем cron задачу из файла
+RUN crontab mycron
 
-# Создаем cron файл
-RUN echo "0 * * * * /usr/local/bin/python /app/worker.py >> /var/log/worker.log 2>&1" > /app/mycron \
-    && crontab /app/mycron
-
-CMD crond -f && tail -f /var/log/worker.log 
+CMD crond -f 
