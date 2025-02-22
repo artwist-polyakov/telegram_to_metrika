@@ -154,10 +154,6 @@ class MetrikaWorker:
                         logger.error(f"Ошибка при обработке сообщения: {str(e)}")
                         await message.reject(requeue=True)
 
-                    # Если сообщений в очереди больше нет — можно выйти
-                    queue_info = await self.queue.declare(passive=True)
-                    if queue_info.message_count == 0:
-                        break
         except asyncio.TimeoutError:
             logger.info("Таймаут ожидания сообщений, завершаем сбор.")
         return messages_processed
