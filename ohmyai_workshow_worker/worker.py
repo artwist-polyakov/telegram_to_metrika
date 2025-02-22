@@ -101,9 +101,18 @@ class MetrikaWorker:
 
         conversions = []
         for _, data in messages:
-            client_id = data[f"{id_type}"]
+            ymclid, yclid = self.parse_payload(data["payload"])
+            client_id = ymclid if id_type == "ymclid" else yclid
             timestamp = data["current_timestamp"]
-            conversions.append((client_id, timestamp))
+            if client_id and client_id != "null":
+                conversions.append((client_id, timestamp))
+
+        if not conversions:
+            logger.info(f"Нет валидных конверсий для {id_type}")
+            # Подтверждаем сообщения без валидных конверсий
+            for message, _ in messages:
+                await message.ack()
+            return
 
         try:
             csv_content = self.create_csv(conversions)
@@ -133,18 +142,30 @@ class MetrikaWorker:
                     try:
                         body = message.body.decode()
                         data = json.loads(body)
+                        logger.debug(f"Получено сообщение: {body}")
 
                         if not data.get("payload"):
+                            logger.debug("Сообщение без payload, пропускаем")
                             await message.ack()
                             continue
 
                         ymclid, yclid = self.parse_payload(data["payload"])
 
+                        if ymclid == "null" and yclid == "null":
+                            logger.debug("Оба ID null, пропускаем сообщение")
+                            await message.ack()
+                            continue
+
                         if ymclid and ymclid != "null":
+                            logger.debug(
+                                f"Добавляем сообщение в ymclid группу: {ymclid}"
+                            )
                             self.ymclid_messages[ymclid].append((message, data))
                         elif yclid and yclid != "null":
+                            logger.debug(f"Добавляем сообщение в yclid группу: {yclid}")
                             self.yclid_messages[yclid].append((message, data))
                         else:
+                            logger.debug("Нет валидных ID, пропускаем")
                             await message.ack()
                             continue
 
@@ -156,6 +177,10 @@ class MetrikaWorker:
 
         except asyncio.TimeoutError:
             logger.info("Таймаут ожидания сообщений, завершаем сбор.")
+
+        logger.info(
+            f"Собрано сообщений: {messages_processed} (ymclid: {len(self.ymclid_messages)}, yclid: {len(self.yclid_messages)})"
+        )
         return messages_processed
 
     async def process_collected_messages(self):
