@@ -22,7 +22,7 @@ cp .env.example .env
 
 4. Запустить сервисы:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Добавление нового проекта
