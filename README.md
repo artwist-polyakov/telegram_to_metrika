@@ -7,7 +7,7 @@
 1. Клонировать репозиторий:
 ```bash
 git clone <repository-url>
-cd telegram-to-metrika
+cd telegram_to_metrika
 ```
 
 2. Создать файл `.env` на основе `.env.example`:
