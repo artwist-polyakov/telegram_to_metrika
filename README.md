@@ -184,3 +184,7 @@ RabbitMQ Management доступен на порту 15672 (default credentials:
 - ID счётчика
 - Routing key
 - Логику парсинга payload (если отличается) 
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
